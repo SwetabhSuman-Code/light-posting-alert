@@ -82,7 +82,20 @@ class LiveLightClient(LightClient):
 
     def list_stuck_invoices(self) -> list[Invoice]:
         params = {"filter": f"state:in:{_STATE_FILTER_VALUE}"}
-        return [self._to_invoice(raw) for raw in self._paginate("/v1/bff/invoice-payables", params)]
+        invoices = []
+        skipped = 0
+        for raw in self._paginate("/v1/bff/invoice-payables", params):
+            # NOTE: verified live -- brand-new drafts can come back with vendor: {},
+            # nothing filled in yet. There's nothing to show a finance person (no vendor,
+            # often no amount either), and grouping.py's vendors[vendor_id] lookup would
+            # KeyError on an id with no matching vendor. Skipped, not silently dropped.
+            if not (raw.get("vendor") or {}).get("vendorId"):
+                skipped += 1
+                continue
+            invoices.append(self._to_invoice(raw))
+        if skipped:
+            print(f"Skipped {skipped} stuck invoice(s) with no vendor assigned yet.")
+        return invoices
 
     def _to_invoice(self, raw: dict) -> Invoice:
         real_state = raw["state"]

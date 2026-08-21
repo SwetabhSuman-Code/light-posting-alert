@@ -61,6 +61,11 @@ _TRUNCATION_BLOCK = 1
 _MAX_BLOCKS = 50
 _MAX_VENDORS = (_MAX_BLOCKS - _HEADER_BLOCKS - _TRUNCATION_BLOCK) // _BLOCKS_PER_VENDOR
 
+# A single vendor with hundreds of stuck invoices is real (seen live against the demo
+# tenant, one vendor had 449). A Slack section's text has a hard 3000-character limit,
+# and a wall of invoice lines is not finance-readable anyway, so cap per-vendor display.
+_MAX_INVOICES_PER_VENDOR = 10
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -103,13 +108,19 @@ def _vendor_section_text(vs) -> str:
         f"{totals}  |  oldest: {vs.oldest_age_days} days {oldest_emoji}"
     )
 
+    shown = vs.invoices[:_MAX_INVOICES_PER_VENDOR]
+    hidden = n - len(shown)
+
     inv_lines = []
-    for inv in vs.invoices:
+    for inv in shown:
         age = compute_age_days(inv)
         status_label = _STATUS_LABELS[inv.status]
         inv_lines.append(
             f"`{inv.id}`   {_fmt_amount(inv.amount, inv.currency)}   {age}d   {status_label}"
         )
+    if hidden > 0:
+        plural = "s" if hidden != 1 else ""
+        inv_lines.append(f"_+{hidden} more invoice{plural} not shown_")
 
     return header + "\n" + "\n".join(inv_lines)
 
@@ -216,7 +227,9 @@ def format_plain(summary: AlertSummary) -> str:
             f"{vs.vendor.name}  --  {n} invoice{plural}  |  {totals}  "
             f"|  oldest: {vs.oldest_age_days}d  [{oldest_label}]"
         )
-        for inv in vs.invoices:
+        shown = vs.invoices[:_MAX_INVOICES_PER_VENDOR]
+        hidden = n - len(shown)
+        for inv in shown:
             age = compute_age_days(inv)
             bucket = classify_bucket(age)
             status_label = _STATUS_LABELS[inv.status]
@@ -225,6 +238,9 @@ def format_plain(summary: AlertSummary) -> str:
                 f"  {inv.id:<12}  {_fmt_amount(inv.amount, inv.currency):<18}"
                 f"  {age:>3}d  {status_label:<30}  [{bucket_label}]"
             )
+        if hidden > 0:
+            plural = "s" if hidden != 1 else ""
+            lines.append(f"  ... and {hidden} more invoice{plural} not shown")
 
     lines.append("")
     return "\n".join(lines)
