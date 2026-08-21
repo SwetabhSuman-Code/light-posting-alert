@@ -16,11 +16,19 @@ Design choices recorded here so they're easy to find at the demo:
   the cap allows up to 15 vendors before a "and N more" note is appended.
 """
 from datetime import datetime, timezone
+from urllib.parse import quote_plus
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .models import AlertSummary, AgingBucket, InvoiceStatus
 from .aging import compute_age_days, classify_bucket
 from . import config
+
+_LIGHT_BASE = "https://app.light.inc/payables"
+
+
+def _vendor_url(vendor_name: str) -> str:
+    """Deep-link to the Light payables page filtered to this vendor."""
+    return f"{_LIGHT_BASE}?search={quote_plus(vendor_name)}"
 
 # ---------------------------------------------------------------------------
 # Label and symbol maps -- the finance-readability contract
@@ -101,8 +109,9 @@ def _vendor_section_text(vs) -> str:
     oldest_emoji = _BUCKET_EMOJI[vs.worst_bucket]
     totals = _fmt_totals(vs.total_by_currency)
 
+    url = _vendor_url(vs.vendor.name)
     header = (
-        f"*{vs.vendor.name}*  --  {n} invoice{plural}  |  "
+        f"*<{url}|{vs.vendor.name}>*  --  {n} invoice{plural}  |  "
         f"{totals}  |  oldest: {vs.oldest_age_days} days {oldest_emoji}"
     )
 
@@ -168,7 +177,7 @@ def format_blocks(summary: AlertSummary) -> list[dict]:
                 {
                     "type": "button",
                     "text": {"type": "plain_text", "text": "View in Light"},
-                    "url": "https://app.light.inc/payables",
+                    "url": _vendor_url(vs.vendor.name),
                     "action_id": "view_in_light",
                 }
             ],
