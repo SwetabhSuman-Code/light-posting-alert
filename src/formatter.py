@@ -25,10 +25,20 @@ from . import config
 
 _LIGHT_BASE = "https://app.light.inc/payables"
 
+# Tabs confirmed from live URL inspection: inbox, approving, scheduled, paid, archived.
+# Most stuck invoices (pending approval, pending accounting entry, awaiting payment)
+# land in the Approving tab in Light's UI, not Inbox. Linking there avoids empty results.
+_LIGHT_TABS = {
+    "approving": "approving",
+    "inbox":     "inbox",
+    "scheduled": "scheduled",
+}
+_DEFAULT_TAB = "approving"
 
-def _vendor_url(vendor_name: str) -> str:
-    """Deep-link to the Light payables page filtered to this vendor."""
-    return f"{_LIGHT_BASE}?search={quote_plus(vendor_name)}"
+
+def _vendor_url(vendor_name: str, tab: str = _DEFAULT_TAB) -> str:
+    """Deep-link to the Light payables page filtered to this vendor on the given tab."""
+    return f"{_LIGHT_BASE}?tab={tab}&search={quote_plus(vendor_name)}"
 
 # ---------------------------------------------------------------------------
 # Label and symbol maps -- the finance-readability contract
