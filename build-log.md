@@ -1,0 +1,35 @@
+# Build Log -- Light Posting Alert
+
+Format per entry: what we prompted Claude Code with, what came back,
+what broke, how we fixed it. Do not clean up the "what broke" entries,
+those are the point.
+
+## Setup
+- [2026-08-21] Repo scaffolded, venv created, deps installed.
+
+## Step 0 decisions (agreed with Hudson)
+- "How old" = days stuck in current status (updatedAt), not days past due date.
+- AGING_THRESHOLDS = [7, 14, 30] (from config stub); aging.py reads config, not hardcoded. Verified live via monkeypatch in test_classify_reads_config_not_hardcoded.
+- TIMEZONE = "UTC" (config stub); formatter.py reads it via ZoneInfo(config.TIMEZONE) with fallback to timezone.utc. Verified final state: both config values are wired in, not left as unused stubs.
+- tzdata note: ZoneInfo("UTC") works without the tzdata package. If Hudson's real config.py sets a non-UTC IANA timezone (e.g. "America/New_York"), add tzdata to requirements.txt at merge -- otherwise ZoneInfoNotFoundError on Windows. The fallback in formatter._get_tz() will catch it gracefully, but the date will silently shift to UTC.
+
+## Phase 1 -- Mock Data and MockLightClient
+- [2026-08-21] Prompted: create src/models.py and src/light_client.py (Step 0 shared files), then data/mock_invoices.json (10 invoices, 5 vendors, all 4 statuses, ages 3/7/10/12/16/20/25/45 days, USD + EUR, Acme with 3 invoices, Hooli with 1 small invoice), data/mock_vendors.json, and src/mock_client.py per spec.
+- GitHub was private/unreachable and gh CLI not installed, so models.py and light_client.py were written from spec rather than pulled.
+- First run: ModuleNotFoundError for pydantic -- venv had not been created yet. Fixed by running `python -m venv .venv && pip install -r requirements.txt`.
+- Second run: all 10 invoices parsed cleanly as Invoice objects; INV-1003 and INV-1007 correctly show as NAIVE (no tzinfo), the rest as timezone-aware. All 5 vendors loaded. MockLightClient smoke test green.
+
+## Phase 2 -- Aging and Grouping Logic
+- [2026-08-21] Prompted: tests first (test_aging.py and test_grouping.py including test_naive_datetime_does_not_crash), then implement src/aging.py and src/grouping.py; aging.py must read config.AGING_THRESHOLDS not hardcode thresholds.
+- Run 1 (before implementation): 22 failed, all ModuleNotFoundError for src.aging and src.grouping. Expected; confirmed tests are actually running and failing for the right reason.
+- Implemented src/aging.py: _as_utc coerces naive datetimes via replace(tzinfo=utc), compute_age_days uses timedelta.days, classify_bucket unpacks config.AGING_THRESHOLDS into watch/attention/overdue and uses < comparisons at each boundary. test_classify_reads_config_not_hardcoded confirmed thresholds are live via monkeypatch.
+- Implemented src/grouping.py: groups invoices with defaultdict, computes total_by_currency per vendor (multi-currency safe), tracks oldest_age_days and worst_bucket via _BUCKET_RANK, sorts vendor_summaries by (bucket_rank, oldest_age_days) descending.
+- Run 2: 22 passed, 0 failed. No iteration needed. test_naive_datetime_does_not_crash passed: _as_utc absorbed the naive datetime without a TypeError.
+
+## Phase 3 -- Message Formatting
+- [2026-08-21] Prompted: tests first (test_formatter.py including test_bucket_labels_read_like_finance_not_engineering), then implement src/formatter.py exporting format_blocks and format_plain. Header date from config.TIMEZONE. Status labels mapped to plain English. 50-block cap with truncation.
+- Run 1 (before implementation): 17 failed, all ModuleNotFoundError for src.formatter.
+- Implemented formatter.py: _STATUS_LABELS maps all four InvoiceStatus values to plain English (in draft, pending approval, pending accounting entry, awaiting payment). _fmt_amount uses currency symbols and thousands separators, suppresses .00 on whole numbers. Block structure is header + summary section + divider + (section + actions + divider) per vendor. _MAX_VENDORS = (50-3-1)//3 = 15. ZoneInfo(config.TIMEZONE) with fallback to timezone.utc if zone unknown.
+- Run 2: 17 passed, 0 failed. No iteration needed.
+- Full suite: 39 passed, 0 failed across test_aging.py, test_formatter.py, test_grouping.py.
+- Block Kit output: 18 blocks for 5 vendors. Confirmed format_plain reads like a finance alert not an engineering log (no raw enum values).

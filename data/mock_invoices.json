@@ -1,0 +1,99 @@
+[
+  {
+    "id": "INV-1001",
+    "vendorId": "v001",
+    "amount": 5200.00,
+    "currency": "USD",
+    "status": "IN_DRAFT",
+    "updatedAt": "2026-07-07T09:15:00Z",
+    "dueDate": "2026-07-15T00:00:00Z",
+    "description": "Office equipment Q2"
+  },
+  {
+    "id": "INV-1002",
+    "vendorId": "v001",
+    "amount": 4100.00,
+    "currency": "USD",
+    "status": "APPROVAL_PENDING",
+    "updatedAt": "2026-08-01T11:00:00Z",
+    "dueDate": "2026-08-20T00:00:00Z",
+    "description": "Consulting services July"
+  },
+  {
+    "id": "INV-1003",
+    "vendorId": "v001",
+    "amount": 3100.00,
+    "currency": "USD",
+    "status": "IN_DRAFT",
+    "updatedAt": "2026-08-18T14:30:00",
+    "description": "Software licenses Aug"
+  },
+  {
+    "id": "INV-1004",
+    "vendorId": "v002",
+    "amount": 8500.00,
+    "currency": "USD",
+    "status": "APPROVAL_PENDING",
+    "updatedAt": "2026-08-11T16:45:00Z",
+    "dueDate": "2026-08-25T00:00:00Z",
+    "description": "Raw materials shipment"
+  },
+  {
+    "id": "INV-1005",
+    "vendorId": "v002",
+    "amount": 3200.00,
+    "currency": "EUR",
+    "status": "APPROVED_ACCOUNTING_ENTRY_PENDING",
+    "updatedAt": "2026-08-05T08:20:00Z",
+    "dueDate": "2026-08-22T00:00:00Z",
+    "description": "EU warehouse rental"
+  },
+  {
+    "id": "INV-1006",
+    "vendorId": "v003",
+    "amount": 2800.00,
+    "currency": "USD",
+    "status": "APPROVED_ACCOUNTING_ENTRY_PENDING",
+    "updatedAt": "2026-07-07T13:00:00Z",
+    "dueDate": "2026-07-31T00:00:00Z",
+    "description": "IT infrastructure Q2"
+  },
+  {
+    "id": "INV-1007",
+    "vendorId": "v003",
+    "amount": 1500.00,
+    "currency": "USD",
+    "status": "IN_DRAFT",
+    "updatedAt": "2026-08-14T10:30:00",
+    "description": "Maintenance contract"
+  },
+  {
+    "id": "INV-1008",
+    "vendorId": "v004",
+    "amount": 6400.00,
+    "currency": "EUR",
+    "status": "APPROVAL_PENDING",
+    "updatedAt": "2026-07-27T09:00:00Z",
+    "dueDate": "2026-08-10T00:00:00Z",
+    "description": "Research supplies"
+  },
+  {
+    "id": "INV-1009",
+    "vendorId": "v004",
+    "amount": 1200.00,
+    "currency": "EUR",
+    "status": "AWAITING_PAYMENT",
+    "updatedAt": "2026-08-09T15:15:00Z",
+    "dueDate": "2026-08-30T00:00:00Z",
+    "description": "Lab equipment rental"
+  },
+  {
+    "id": "INV-1010",
+    "vendorId": "v005",
+    "amount": 450.00,
+    "currency": "USD",
+    "status": "IN_DRAFT",
+    "updatedAt": "2026-08-18T09:45:00Z",
+    "description": "Catering services"
+  }
+]

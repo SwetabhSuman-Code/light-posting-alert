@@ -1,0 +1,5 @@
+pydantic>=2.0
+httpx
+python-dotenv
+schedule
+pytest
