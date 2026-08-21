@@ -15,11 +15,10 @@ Design choices recorded here so they're easy to find at the demo:
   actions + divider). With 3 header blocks and 1 optional truncation block,
   the cap allows up to 15 vendors before a "and N more" note is appended.
 """
-import json
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from .models import AlertSummary, AgingBucket, InvoiceStatus, Invoice
+from .models import AlertSummary, AgingBucket, InvoiceStatus
 from .aging import compute_age_days, classify_bucket
 from . import config
 
@@ -50,8 +49,8 @@ _BUCKET_LABELS: dict[AgingBucket, str] = {
 
 _CURRENCY_SYMBOLS: dict[str, str] = {
     "USD": "$",
-    "EUR": "€",  # €
-    "GBP": "£",  # £
+    "EUR": "€",
+    "GBP": "£",
 }
 
 # Block Kit sizing
@@ -60,6 +59,11 @@ _BLOCKS_PER_VENDOR = 3    # section + actions + divider
 _TRUNCATION_BLOCK = 1
 _MAX_BLOCKS = 50
 _MAX_VENDORS = (_MAX_BLOCKS - _HEADER_BLOCKS - _TRUNCATION_BLOCK) // _BLOCKS_PER_VENDOR
+
+# A single vendor with hundreds of stuck invoices is real (seen live against the demo
+# tenant, one vendor had 449). A Slack section's text has a hard 3000-character limit,
+# and a wall of invoice lines is not finance-readable anyway, so cap per-vendor display.
+_MAX_INVOICES_PER_VENDOR = 10
 
 
 # ---------------------------------------------------------------------------
@@ -77,7 +81,6 @@ def _get_tz():
 def _fmt_amount(amount: float, currency: str) -> str:
     """Format a monetary amount with symbol and thousands separator."""
     sym = _CURRENCY_SYMBOLS.get(currency, "")
-    # Use integer formatting when amount is a whole number, decimal otherwise
     if amount == int(amount):
         num = f"{int(amount):,}"
     else:
@@ -103,13 +106,19 @@ def _vendor_section_text(vs) -> str:
         f"{totals}  |  oldest: {vs.oldest_age_days} days {oldest_emoji}"
     )
 
+    shown = vs.invoices[:_MAX_INVOICES_PER_VENDOR]
+    hidden = n - len(shown)
+
     inv_lines = []
-    for inv in vs.invoices:
+    for inv in shown:
         age = compute_age_days(inv)
         status_label = _STATUS_LABELS[inv.status]
         inv_lines.append(
             f"`{inv.id}`   {_fmt_amount(inv.amount, inv.currency)}   {age}d   {status_label}"
         )
+    if hidden > 0:
+        inv_plural = "s" if hidden != 1 else ""
+        inv_lines.append(f"_+{hidden} more invoice{inv_plural} not shown_")
 
     return header + "\n" + "\n".join(inv_lines)
 
@@ -119,12 +128,7 @@ def _vendor_section_text(vs) -> str:
 # ---------------------------------------------------------------------------
 
 def format_blocks(summary: AlertSummary) -> list[dict]:
-    """Return a Slack Block Kit payload for the given AlertSummary.
-
-    Enforces a 50-block cap; if more vendors exist than fit, the most urgent
-    vendors are shown first (grouping.py already sorts by urgency) and a
-    trailing note counts the omitted ones.
-    """
+    """Return a Slack Block Kit payload for the given AlertSummary."""
     tz = _get_tz()
     now = summary.generated_at.astimezone(tz)
     date_str = now.strftime("%a %d %b %Y")
@@ -172,12 +176,12 @@ def format_blocks(summary: AlertSummary) -> list[dict]:
         blocks.append({"type": "divider"})
 
     if remaining > 0:
-        plural = "s" if remaining != 1 else ""
+        v_plural = "s" if remaining != 1 else ""
         blocks.append({
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": f"_and {remaining} more vendor{plural} not shown_",
+                "text": f"_and {remaining} more vendor{v_plural} not shown_",
             },
         })
 
@@ -208,15 +212,17 @@ def format_plain(summary: AlertSummary) -> str:
 
     for vs in summary.vendor_summaries:
         n = len(vs.invoices)
-        plural = "s" if n != 1 else ""
+        inv_plural = "s" if n != 1 else ""
         totals = _fmt_totals(vs.total_by_currency)
         oldest_label = _BUCKET_LABELS[vs.worst_bucket].upper()
         lines.append("")
         lines.append(
-            f"{vs.vendor.name}  --  {n} invoice{plural}  |  {totals}  "
+            f"{vs.vendor.name}  --  {n} invoice{inv_plural}  |  {totals}  "
             f"|  oldest: {vs.oldest_age_days}d  [{oldest_label}]"
         )
-        for inv in vs.invoices:
+        shown = vs.invoices[:_MAX_INVOICES_PER_VENDOR]
+        hidden = n - len(shown)
+        for inv in shown:
             age = compute_age_days(inv)
             bucket = classify_bucket(age)
             status_label = _STATUS_LABELS[inv.status]
@@ -225,6 +231,9 @@ def format_plain(summary: AlertSummary) -> str:
                 f"  {inv.id:<12}  {_fmt_amount(inv.amount, inv.currency):<18}"
                 f"  {age:>3}d  {status_label:<30}  [{bucket_label}]"
             )
+        if hidden > 0:
+            h_plural = "s" if hidden != 1 else ""
+            lines.append(f"  ... and {hidden} more invoice{h_plural} not shown")
 
     lines.append("")
     return "\n".join(lines)
