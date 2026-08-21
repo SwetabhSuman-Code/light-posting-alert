@@ -51,3 +51,20 @@ those are the point.
 - Smoke-tested against Luca's real pipeline end to end (MockLightClient -> build_alert_summary -> format_blocks/format_plain -> sinks), since her code already exists on this branch: ConsoleSink and FileSink both produced correct output on the first run, no iteration needed. get_sink() with default OUTPUT_MODE correctly returned ConsoleSink.
 - One scare, not a bug: the EUR amounts printed as a mangled "?" character in this shell and when read back from the file. Verified with ord() that the actual character in memory is U+20AC (correct euro sign) and that the file's bytes decode as valid UTF-8 with no error -- this is the terminal's display encoding, not a data or file-writing bug. No code change made.
 - WebhookSink not live-tested yet, SLACK_WEBHOOK_URL is still blank -- covered in Phase 7b.
+
+## Phase 6 -- Live Client, first pass (Hudson)
+- [2026-08-21] Confirmed with the team: LIGHT_COMPANY_ENTITY_ID is not required by the real API. Removed it from config.py, validate(), .env.example, and .env entirely rather than leaving an unused stub.
+- Read the real API docs at docs.light.inc (getting-started/authentication, api-reference/v1--invoice-payables/list-invoice-payables, api-reference/v1--vendors/list-vendors, getting-started/rate-limits) before writing any code, instead of guessing blind like the plan's original example.
+- **Found a real mismatch before even hitting the live API:** the real invoice `state` field has ~21 possible values; our shared InvoiceStatus enum has 4. Some line up exactly (IN_DRAFT, APPROVAL_PENDING, APPROVED_ACCOUNTING_ENTRY_PENDING) but APPROVAL_REQUESTED and several payment-stage states (READY_FOR_PAYMENT_RELEASE, PENDING_PAYMENT_APPROVAL, PAYMENT_PENDING, UNPAID) have no home in our enum. Feeding any of those straight into Invoice(**item) would throw a Pydantic ValidationError. Flagged this to the team before writing live_client.py rather than after, since it changes what "stuck" means, not just a field-name typo.
+- Decision made: broad mapping. APPROVAL_REQUESTED counts as APPROVAL_PENDING; every payment-stage-short-of-paid state (READY_FOR_PAYMENT_RELEASE, PENDING_PAYMENT_APPROVAL, PAYMENT_PENDING, UNPAID) counts as AWAITING_PAYMENT. This matches the assignment's own wording ("draft or awaiting posting/approval") more literally than a narrow 1:1 name match would. Implemented as STUCK_STATE_MAP in live_client.py.
+- Implemented src/live_client.py against the docs (not the plan's example code, since the plan's example was a guess written before docs access):
+  - Endpoint is GET /v1/bff/invoice-payables, not /invoice-payables.
+  - Envelope is {"records": [...], "hasMore": bool, "nextCursor": str|null}, not data/items + hasNextPage. Cursor pagination starts at "0" per docs.
+  - Filter syntax is `filter=state:in:A|B|C` (pipe-separated within one condition, comma-separated between different conditions) -- one call for all stuck states instead of the plan's per-status loop.
+  - Vendor is a nested object on the invoice (vendor.vendorId, vendor.vendorName), not a flat vendorId string -- _to_invoice() extracts it explicitly.
+  - Vendor list endpoint returns `vendorId`/`name`, not `id`/`name` -- mapped explicitly when building Vendor objects.
+- Everything still unverified against the real endpoint, marked with NOTE comments in the code, to be confirmed in Phase 6b:
+  - Auth header: docs say "Authorization: Basic <key>", not the far more common Bearer scheme. This is the first thing to check if every live call 401s.
+  - amount is documented as int64; guessed minor units (cents) and divided by 100. Could be wrong.
+  - LIGHT_API_BASE_URL corrected from my own earlier guess (https://demo.light.inc/api, invented in Phase 4 before I had docs access) to the docs' literal base (https://api.light.inc). Still don't know if the "demo environment" is this same base URL with a demo API key, or a different subdomain -- first thing Phase 6b's live call will tell us.
+- Constructed LiveLightClient() successfully with the real key loaded from .env (no network call yet). Full suite still 39 passed, config.py's entity-ID removal didn't break anything.
