@@ -4,14 +4,29 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-LIGHT_API_BASE_URL = os.environ.get("LIGHT_API_BASE_URL", "")
-LIGHT_API_KEY = os.environ.get("LIGHT_API_KEY", "")
+USE_MOCK_DATA = os.getenv("USE_MOCK_DATA", "true").lower() == "true"
 
-SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "")
+LIGHT_API_KEY = os.getenv("LIGHT_API_KEY", "")
+LIGHT_API_BASE_URL = os.getenv("LIGHT_API_BASE_URL", "https://api.light.inc/v1")
+LIGHT_ENTITY_ID = os.getenv("LIGHT_COMPANY_ENTITY_ID", "")
 
-OUTPUT_FILE_PATH = os.environ.get("OUTPUT_FILE_PATH", "output/alert.txt")
+SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
+SLACK_CHANNEL_ID = os.getenv("SLACK_CHANNEL_ID", "")
 
-AGING_THRESHOLDS = [
-    int(x) for x in os.environ.get("AGING_THRESHOLDS", "7,14,30").split(",")
-]
-TIMEZONE = os.environ.get("TIMEZONE", "UTC")
+OUTPUT_MODE = os.getenv("OUTPUT_MODE", "console")  # console | file | slack
+OUTPUT_FILE_PATH = os.getenv("OUTPUT_FILE_PATH", "output/alert.txt")
+
+TIMEZONE = os.getenv("TIMEZONE", "UTC")
+AGING_THRESHOLDS = [int(x) for x in os.getenv("AGING_THRESHOLDS", "7,14,30").split(",")]
+
+SCHEDULE_TIME = os.getenv("SCHEDULE_TIME", "09:00")  # daily digest, stretch goal only
+
+
+def validate():
+    if not USE_MOCK_DATA:
+        if not LIGHT_API_KEY:
+            raise EnvironmentError("LIGHT_API_KEY is required when USE_MOCK_DATA=false")
+        if not LIGHT_ENTITY_ID:
+            raise EnvironmentError("LIGHT_COMPANY_ENTITY_ID is required when USE_MOCK_DATA=false")
+    if OUTPUT_MODE == "slack" and not SLACK_WEBHOOK_URL:
+        raise EnvironmentError("SLACK_WEBHOOK_URL required when OUTPUT_MODE=slack")
