@@ -33,3 +33,12 @@ those are the point.
 - Run 2: 17 passed, 0 failed. No iteration needed.
 - Full suite: 39 passed, 0 failed across test_aging.py, test_formatter.py, test_grouping.py.
 - Block Kit output: 18 blocks for 5 vendors. Confirmed format_plain reads like a finance alert not an engineering log (no raw enum values).
+
+## Phase 4 -- Config (Hudson)
+- [2026-08-21] Pulled Luca's branch (luca/data-logic-formatting, the only branch pushed -- Step 0 files and Phases 1-3 all landed in one commit, no separate main). Created hudson/infra-client-cli off it. Ran `pytest tests/`: 39 passed before touching anything, confirmed the branch works before building on top of it.
+- Prompted: replace the config.py stub with a real version reading everything from .env via python-dotenv. Drop any SLACK_BOT_TOKEN handling since only the webhook path is being built.
+- Checked whether AGING_THRESHOLDS and TIMEZONE are actually used before deleting them, per the plan's cleanup note -- Luca's build log already confirms both are wired into aging.py and formatter.py, not dead stubs. Kept both, made them env-overridable (AGING_THRESHOLDS as comma-separated string parsed to ints, TIMEZONE as a plain string) with the same defaults as the stub, so behavior doesn't change unless .env sets something different.
+- Added LIGHT_API_BASE_URL, LIGHT_API_KEY, SLACK_WEBHOOK_URL, OUTPUT_FILE_PATH for the phases ahead (live_client, sinks). No bot token anywhere.
+- Created .env.example (committed, placeholder values) and a local .env (gitignored, confirmed via `git status` that only .env.example shows up as untracked, .env itself is invisible to git).
+- Verified: `python -c "from src import config; print(...)"` loads all five values correctly. Re-ran `pytest tests/`: still 39 passed, config.py swap didn't break anything Luca built on the stub.
+- Noted for later: Luca's build log flags that a non-UTC IANA TIMEZONE needs `tzdata` added to requirements.txt on Windows or ZoneInfo throws. Staying on the default "UTC" for this sprint per the Step 0 decision, so not adding tzdata now -- revisit if that default changes.
